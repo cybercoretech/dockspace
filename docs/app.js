@@ -1,7 +1,7 @@
 /* Cybercore project-site kit — theme engine + interactions.
  *
  * Themes come from the org site's schema at /data (same origin on
- * cybercore-tech.github.io), so every project site shares one registry:
+ * cybercoretech.github.io), so every project site shares one registry:
  *   /data/cybergrid.json            families → theme names
  *   /data/themes/<family>/<name>.json  11-slot palettes
  * Each site also ships SIGNATURE MASHUPS (see SITE.mashups in index.html):
