@@ -2,6 +2,7 @@ mod activity;
 mod cybergrid;
 mod dockercmd;
 mod guard;
+mod localtoken;
 mod scanner;
 mod views;
 
@@ -71,6 +72,8 @@ async fn main() {
         .route("/resources/prune/:kind", post(resources_prune))
         .route("/activity", get(activity_view))
         .route("/api/summary", get(api_summary))
+        .route("/api/stacks", get(api_stacks))
+        .route("/api/stacks/:id/logs", get(api_stack_logs))
         .route("/api/activity", get(api_activity))
         .route("/api/telemetry", get(api_telemetry))
         // Separate literal routes rather than a `:action` wildcard segment —
@@ -105,7 +108,11 @@ async fn main() {
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(7070);
-    guard::init(port);
+    let local = localtoken::LocalToken::create("dockspace");
+    if let Some(p) = local.path() {
+        tracing::info!("local-token for local clients: {}", p.display());
+    }
+    guard::init(port, local);
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     tracing::info!("dockspace listening on http://{addr}");
     let listener = tokio::net::TcpListener::bind(addr)
@@ -177,6 +184,55 @@ async fn api_summary(State(state): State<AppState>) -> Json<serde_json::Value> {
     }))
 }
 
+/// Every stack with its status and containers, as JSON — the per-stack
+/// counterpart to `api_summary`, for clients that draw their own list
+/// (Nightwatch). `id` is the URL-safe name the `/stacks/:id/*` routes take.
+async fn api_stacks(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let stacks = scanner::scan(&state.root);
+    let futures = stacks.iter().map(|stack| {
+        let compose_path = stack.abs_path.join(&stack.compose_file);
+        let working = state.pending.lock().unwrap().contains(&stack.name);
+        let last_error = state.last_error.lock().unwrap().get(&stack.name).cloned();
+        async move {
+            let ps = if working {
+                Err("action in progress".to_string())
+            } else {
+                dockercmd::ps(&compose_path).await
+            };
+            let status = dockercmd::derive_status(&ps);
+            let containers: Vec<serde_json::Value> = ps
+                .as_ref()
+                .map(|cs| {
+                    cs.iter()
+                        .map(|c| serde_json::json!({ "service": c.service, "state": c.state, "name": c.name }))
+                        .collect()
+                })
+                .unwrap_or_default();
+            serde_json::json!({
+                "id": scanner::encode_name(&stack.name),
+                "name": stack.name,
+                "services": stack.services,
+                "ports": stack.ports,
+                "status": if working { serde_json::json!("Working") } else { serde_json::json!(status) },
+                "containers": containers,
+                "last_error": last_error,
+            })
+        }
+    });
+    let list = futures_util::future::join_all(futures).await;
+    Json(serde_json::json!({ "stacks": list }))
+}
+
+async fn api_stack_logs(
+    State(state): State<AppState>,
+    AxPath(id): AxPath<String>,
+) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+    let stack = find_stack(&state, &id).ok_or(axum::http::StatusCode::NOT_FOUND)?;
+    let compose_path = stack.abs_path.join(&stack.compose_file);
+    let text = dockercmd::logs(&compose_path, 200).await;
+    Ok(Json(serde_json::json!({ "logs": text })))
+}
+
 /// Every stack's status is an independent `docker compose ps` — awaiting
 /// them one at a time made total latency scale with stack count (19 stacks
 /// × ~150-300ms of subprocess overhead each easily passed a 2s client-side
@@ -238,7 +294,9 @@ async fn run_action(state: AppState, id: String, action: &'static str) -> Html<S
     let last_error = state.last_error.clone();
     let activity = state.activity.clone();
     let name = stack.name.clone();
-    tokio::spawn(async move {
+    // The actor lives in a task-local; carry it into the spawned task.
+    let actor = guard::current_actor();
+    tokio::spawn(guard::ACTOR.scope(actor, async move {
         let (ok, output) = dockercmd::action(&compose_path, action).await;
         if !ok {
             let tail: String = output.lines().rev().take(20).collect::<Vec<_>>().join("\n");
@@ -247,7 +305,7 @@ async fn run_action(state: AppState, id: String, action: &'static str) -> Html<S
         let detail = if ok { None } else { Some(output) };
         activity.record(action, name.clone(), ok, detail);
         pending.lock().unwrap().remove(&name);
-    });
+    }));
 
     Html(views::stack_card(
         &stack,

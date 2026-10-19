@@ -12,6 +12,10 @@
 //!   from another site: `Sec-Fetch-Site` must be `same-origin` or `none`, and
 //!   any `Origin` must be our own. Requests with neither header (curl, local
 //!   scripts) are allowed — they aren't a browser acting on a page's behalf.
+//!
+//! A request with this run's local-token/v1 bearer (see `localtoken`; what
+//! Nightwatch's gateway sends) skips the browser checks, and the actor it
+//! names is recorded with each activity entry it causes.
 
 use axum::{
     extract::Request,
@@ -19,13 +23,26 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
+use crate::localtoken::LocalToken;
 use std::sync::OnceLock;
 
 static PORT: OnceLock<u16> = OnceLock::new();
+static LOCAL: OnceLock<LocalToken> = OnceLock::new();
+
+tokio::task_local! {
+    /// Who a local-token request acts for, for the activity log.
+    pub static ACTOR: Option<String>;
+}
 
 /// Call once at startup, before serving.
-pub fn init(port: u16) {
+pub fn init(port: u16, local: LocalToken) {
     let _ = PORT.set(port);
+    let _ = LOCAL.set(local);
+}
+
+/// The actor of the request being handled, if it came with a local token.
+pub fn current_actor() -> Option<String> {
+    ACTOR.try_with(|a| a.clone()).ok().flatten()
 }
 
 fn allowed_hosts(port: u16) -> [String; 3] {
@@ -65,6 +82,17 @@ pub fn check(
 pub async fn middleware(req: Request, next: Next) -> Response {
     let port = *PORT.get().unwrap_or(&7070);
     let h = req.headers();
+    if LOCAL.get().is_some_and(|l| l.verify(h)) {
+        if !allowed_hosts(port).iter().any(|a| {
+            h.get(header::HOST)
+                .and_then(|v| v.to_str().ok())
+                .is_some_and(|v| a.eq_ignore_ascii_case(v))
+        }) {
+            return (StatusCode::FORBIDDEN, "Host is not this loopback dashboard").into_response();
+        }
+        let actor = LocalToken::actor(h);
+        return ACTOR.scope(actor, next.run(req)).await;
+    }
     let get = |name: header::HeaderName| h.get(name).and_then(|v| v.to_str().ok());
     let verdict = check(
         req.method(),

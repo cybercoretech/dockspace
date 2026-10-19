@@ -25,6 +25,10 @@ pub struct Entry {
     pub subject: String,
     pub ok: bool,
     pub detail: Option<String>,
+    /// Who asked, when it came through a local client (e.g.
+    /// "nightwatch:Pixel"); absent for the dashboard's own buttons.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actor: Option<String>,
 }
 
 pub struct Log {
@@ -87,6 +91,7 @@ impl Log {
             subject: subject.into(),
             ok,
             detail,
+            actor: crate::guard::current_actor(),
         });
         self.save(&log);
     }
@@ -111,6 +116,7 @@ impl Log {
                     "verb": e.verb,
                     "subject": e.subject,
                     "ok": e.ok,
+                    "actor": e.actor,
                 })
             })
             .collect()
@@ -126,10 +132,16 @@ fn render_entry(e: &Entry) -> String {
         .map(|d| format!(r#" title="{}""#, crate::views::escape(d)))
         .unwrap_or_default();
     let cls = if e.ok { "activity-ok" } else { "activity-fail" };
+    let via = e
+        .actor
+        .as_deref()
+        .map(|a| format!(" (via {a})"))
+        .unwrap_or_default();
     format!(
-        r#"<li class="activity-row {cls}"{detail}><span class="activity-when">{when}</span><span class="activity-verb">{verb}</span><span class="activity-subject">{subject}</span><span class="activity-status">{status}</span></li>"#,
+        r#"<li class="activity-row {cls}"{detail}><span class="activity-when">{when}</span><span class="activity-verb">{verb}</span><span class="activity-subject">{subject}{via}</span><span class="activity-status">{status}</span></li>"#,
         verb = crate::views::escape(&e.verb),
         subject = crate::views::escape(&e.subject),
+        via = crate::views::escape(&via),
     )
 }
 

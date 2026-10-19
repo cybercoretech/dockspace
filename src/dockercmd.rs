@@ -31,6 +31,8 @@ pub enum StackStatus {
 pub struct ContainerState {
     pub service: String,
     pub state: String,
+    /// Docker's container name — what `/api/container/:name/*` takes.
+    pub name: String,
 }
 
 /// `docker compose -f <path> ps --format json`. Handles both response
@@ -96,6 +98,11 @@ fn container_from_value(v: &serde_json::Value) -> ContainerState {
             .to_string(),
         state: v
             .get("State")
+            .and_then(|s| s.as_str())
+            .unwrap_or_default()
+            .to_string(),
+        name: v
+            .get("Name")
             .and_then(|s| s.as_str())
             .unwrap_or_default()
             .to_string(),
