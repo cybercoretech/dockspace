@@ -1,0 +1,32 @@
+name: Check Cybercore Web Kit consumer
+
+on:
+  push:
+    branches:
+      - main
+      - "feat/**"
+    paths:
+      - "docs/index.html"
+      - "docs/README.md"
+      - "docs/app.js"
+      - ".github/workflows/web-kit-consumer.yml"
+  pull_request:
+    paths:
+      - "docs/index.html"
+      - "docs/README.md"
+      - "docs/app.js"
+      - ".github/workflows/web-kit-consumer.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require versioned shared runtime
+        run: |
+          test ! -e docs/app.js
+          grep -q 'https://cybercoretech.github.io/kit/v1/cybercore.js' docs/index.html
+          grep -q 'https://cybercoretech.github.io/kit/v1/effects.css' docs/index.html
