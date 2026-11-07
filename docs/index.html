@@ -21,6 +21,72 @@
       ]
     };
   </script>
+  <style id="cc-mobile-first">
+/* Mobile floor (phones + tablets): readable text and finger-sized targets.
+   Generated per range from what renders under 11px / 24px; desktop untouched. */
+@media (max-width: 600px) {
+  #openSearch,
+  div.hero-id,
+  div.hero-id > span,
+  span.chip,
+  div.panel-bar > span,
+  span.sim-badge,
+  span > small,
+  span.state-badge,
+  div.harbor-bottom > span,
+  #heroSignal,
+  div.panel-bar,
+  button.stack-choice > small,
+  div.workspace-heading > div > p.eyebrow,
+  #stackStatus,
+  div.service-row > strong,
+  div.service-row > span { font-size: 11px !important; }
+}
+@media (min-width: 601px) and (max-width: 860px) {
+  span.brand-name > small,
+  #openSearch,
+  span.chip,
+  span.sim-badge,
+  div.harbor-bottom > span,
+  div.workspace-heading > div > p.eyebrow { font-size: 11px !important; }
+}
+@media (min-width: 861px) and (max-width: 1024px) {
+  span.brand-name > small,
+  #openSearch,
+  span.chip,
+  span.sim-badge,
+  div.harbor-bottom > span,
+  div.workspace-heading > div > p.eyebrow { font-size: 11px !important; }
+}
+@media (pointer: coarse) {
+  #tailLogs { min-height: 24px; min-width: 24px; }
+  span > a { display: inline-flex; align-items: center; min-height: 24px; min-width: 24px; }
+}
+/* Mobile floor (phones + tablets): readable text and finger-sized targets.
+   Generated per range from what renders under 11px / 24px; desktop untouched. */
+@media (max-width: 600px) {
+  button.copy { font-size: 11px !important; }
+}
+@media (min-width: 601px) and (max-width: 860px) {
+  button.copy { font-size: 11px !important; }
+}
+@media (min-width: 861px) and (max-width: 1024px) {
+  button.copy { font-size: 11px !important; }
+}
+@media (pointer: coarse) {
+  button.copy { min-height: 24px; min-width: 24px; }
+}
+/* Layout fixes: phones and tablets only; laptops and desktops untouched. */
+@media (max-width: 1024px) {
+  /* Mobile first: nothing may make the page wider than the screen.
+     Grid/flex columns may shrink below their widest line; code scrolls in place. */
+  pre { max-width: 100%; overflow-x: auto; }
+  img, video { max-width: 100%; height: auto; }
+  #stackList > * { min-width: 0; }
+  /* Long paths and URLs in inline code may break anywhere instead of widening the page. */
+  :not(pre) > code { overflow-wrap: anywhere; }
+}
+  </style>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -127,7 +193,7 @@ CapabilityBoundingSet=</code></pre></div>
 
   <footer><span>CYBERCORE TECH / DOCKSPACE / MIT / © <span id="year"></span></span><span><a href="https://cybercoretech.github.io/">CYBERCORETECH.GITHUB.IO</a> · <a href="https://github.com/cybercoretech/dockspace">SOURCE</a></span></footer>
   <dialog id="searchDialog" aria-labelledby="searchTitle"><div class="panel-bar"><span id="searchTitle">SEARCH DOCKSPACE</span><button id="closeSearch" type="button" aria-label="Close search">ESC</button></div><label class="sr-only" for="searchInput">Search sections and sample stacks</label><input id="searchInput" type="search" placeholder="Stack, feature, or destination…"><div id="searchResults"></div><p>Tab to navigate · Enter to open · Esc to close</p></dialog>
-  <script src="app.js"></script><script src="playground.js"></script>
+  <script src="https://cybercoretech.github.io/kit/v1/cybercore.js"></script><script src="playground.js"></script>
   <script type="module" src="https://cybercoretech.github.io/kit/contact.js"></script>
 </body>
 </html>
